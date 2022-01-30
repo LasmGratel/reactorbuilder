@@ -166,7 +166,7 @@ public class OverhaulTurbine extends AbstractTemplate {
 
     @Override
     public BlockPos getStartPos(ReactorBuilderTileEntity tileEntity) {
-        EnumFacing front = EnumFacing.getFront(tileEntity.getBlockMetadata());
+        EnumFacing front = EnumFacing.byIndex(tileEntity.getBlockMetadata());
         return super.getStartPos(tileEntity).offset(front.rotateY().getOpposite(), -1);
     }
 

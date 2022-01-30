@@ -209,7 +209,7 @@ public abstract class AbstractTemplate {
     }
 
     public BlockPos getStartPos(ReactorBuilderTileEntity tileEntity){
-        EnumFacing front = EnumFacing.getFront(tileEntity.getBlockMetadata());
+        EnumFacing front = EnumFacing.byIndex(tileEntity.getBlockMetadata());
         BlockPos startPos = tileEntity.getPos().offset(front.getOpposite(), 2).offset(EnumFacing.UP, 1).offset(front.rotateY().getOpposite(), 2);
         switch (front){
             case NORTH:

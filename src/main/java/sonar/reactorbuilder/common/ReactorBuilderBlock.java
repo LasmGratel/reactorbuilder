@@ -36,7 +36,7 @@ public class ReactorBuilderBlock extends Block implements ITileEntityProvider {
     public ReactorBuilderBlock(String registryName) {
         super(Material.ROCK);
         this.setDefaultState(this.blockState.getBaseState().withProperty(BlockHorizontal.FACING, EnumFacing.NORTH));
-        setUnlocalizedName(ReactorBuilder.MODID + "." + registryName);
+        setTranslationKey(ReactorBuilder.MODID + "." + registryName);
         setRegistryName(registryName);
     }
 
@@ -97,7 +97,7 @@ public class ReactorBuilderBlock extends Block implements ITileEntityProvider {
 
     @Override
     public IBlockState getStateFromMeta(int meta){
-        EnumFacing enumfacing = EnumFacing.getFront(meta);
+        EnumFacing enumfacing = EnumFacing.byIndex(meta);
 
         if (enumfacing.getAxis() == EnumFacing.Axis.Y){
             enumfacing = EnumFacing.NORTH;
