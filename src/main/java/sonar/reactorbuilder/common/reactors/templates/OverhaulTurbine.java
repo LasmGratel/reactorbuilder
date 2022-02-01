@@ -31,8 +31,8 @@ public class OverhaulTurbine extends AbstractTemplate {
         super();
     }
 
-    public OverhaulTurbine(String fileName, int diameter, int length, int bearingDiameter) {
-        super(fileName, diameter, diameter, length+2);
+    public OverhaulTurbine(String fileName, int xSize, int ySize, int zSize, int bearingDiameter) {
+        super(fileName, xSize, ySize, zSize + 2);
         this.bearingDiameter = bearingDiameter;
     }
 

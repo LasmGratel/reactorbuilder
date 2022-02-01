@@ -1,5 +1,9 @@
 package sonar.reactorbuilder.common.dictionary;
 
+import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidStack;
+import sonar.reactorbuilder.common.files.ThizNCPFDictionary;
+
 public class OverhaulDictionary {
 
     public static final String NC_MODID = "nuclearcraft";
@@ -172,6 +176,20 @@ public class OverhaulDictionary {
         GlobalDictionary.addDictionaryItemEntry(DictionaryEntryType.IRRADIATOR_RECIPE, "irradiator_thorium", NC_MODID, "dust", 3);
         GlobalDictionary.addDictionaryItemEntry(DictionaryEntryType.IRRADIATOR_RECIPE, "irradiator_protactinium", NC_MODID, "fission_dust", 3);
         GlobalDictionary.addDictionaryItemEntry(DictionaryEntryType.IRRADIATOR_RECIPE, "irradiator_bismuth", NC_MODID, "fission_dust", 0);
+
+        for (String globalName : GlobalDictionary.GLOBAL_DICTIONARY.keySet()) {
+            DictionaryEntry entry = GlobalDictionary.getComponentInfo(globalName);
+            if (entry instanceof DictionaryEntry.ItemEntry) {
+                ItemStack itemStack = entry.getItemStack();
+                if (itemStack.getMetadata() == 0)
+                    ThizNCPFDictionary.INSTANCE.add(itemStack.getItem().getRegistryName().toString(), globalName);
+
+                ThizNCPFDictionary.INSTANCE.add(itemStack.getItem().getRegistryName().toString() + ":" + itemStack.getMetadata(), globalName);
+            } else if (entry instanceof DictionaryEntry.FluidEntry) {
+                FluidStack fluidStack = entry.getFluidStack();
+                ThizNCPFDictionary.INSTANCE.add(fluidStack.getFluid().getName(), globalName);
+            }
+        }
     }
 
     public static void addFuelTypes(String fuelType, String itemName, int meta){

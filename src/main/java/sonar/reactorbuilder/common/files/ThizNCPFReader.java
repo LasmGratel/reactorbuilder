@@ -30,7 +30,7 @@ public class ThizNCPFReader extends AbstractFileReader {
         error = "";
 
         InputStream in;
-        AbstractTemplate template = null;
+
         try{
             in = Files.newInputStream(file.toPath());
             Config header = Config.newConfig();
@@ -42,90 +42,105 @@ public class ThizNCPFReader extends AbstractFileReader {
                 return null;
             }
 
-            int count = header.get("count");
-            if(count <= 0){
-                error = "NCPF doesn't contain any multiblocks";
-                return null;
+            if (version == 10) {
+                return readNCPF11Template(file.getName(), header, in);
+            } else {
+                return readNCPF9Template(file.getName(), header, in);
             }
 
-            Config config = Config.newConfig();
-            config.load(in);
+        }catch (Exception e){
+            ReactorBuilder.logger.error("Error reading reactor file" + file.toPath(), e);
+        }
+        return null;
+    }
 
-            Config underhaulConfig = config.getConfig("underhaul");
-            Config underhaulSFRConfig = underhaulConfig.getConfig("fissionSFR");
-            Map<Integer, DictionaryEntry> underhaulSFRBlockMap = buildConfigDictionaryMap(underhaulSFRConfig.getConfigList("blocks"));
-            Map<Integer, DictionaryEntry> underhaulSFRFuelMap = buildConfigDictionaryMap(underhaulSFRConfig.getConfigList("fuels"));
+    private AbstractTemplate readNCPF11Template(String name, Config header, InputStream in) {
+        AbstractTemplate template = null;
 
-            Config overhaulConfig = config.getConfig("overhaul");
-            Config overhaulSFRConfig = overhaulConfig.getConfig("fissionSFR");
-            Map<Integer, DictionaryEntry> overhaulSFRBlockMap = buildConfigDictionaryMap(overhaulSFRConfig.getConfigList("blocks"));
-            Map<Integer, DictionaryEntry> overhaulSFRFuelMap = buildConfigDictionaryMap(overhaulSFRConfig.getConfigList("fuels"));
-            Map<Integer, DictionaryEntry> overhaulSFRRecipeMap = buildConfigDictionaryMap(overhaulSFRConfig.getConfigList("irradiatorRecipes"));
+        int count = header.get("count");
+        if(count <= 0){
+            error = "NCPF doesn't contain any multiblocks";
+            return null;
+        }
 
-            Config overhaulMSRConfig = overhaulConfig.getConfig("fissionMSR");
-            Map<Integer, DictionaryEntry> overhaulMSRBlockMap = buildConfigDictionaryMap(overhaulMSRConfig.getConfigList("blocks"));
-            Map<Integer, DictionaryEntry> overhaulMSRFuelMap = buildConfigDictionaryMap(overhaulMSRConfig.getConfigList("fuels"));
-            Map<Integer, DictionaryEntry> overhaulMSRRecipeMap = buildConfigDictionaryMap(overhaulMSRConfig.getConfigList("irradiatorRecipes"));
+        Config config = Config.newConfig();
+        config.load(in);
 
-            Config overhaulTurbineConfig = overhaulConfig.getConfig("turbine");
-            Map<Integer, DictionaryEntry> overhaulTurbineBladesMap = buildConfigDictionaryMap(overhaulTurbineConfig.getConfigList("blades"));
-            Map<Integer, DictionaryEntry> overhaulTurbineCoilsMap = buildConfigDictionaryMap(overhaulTurbineConfig.getConfigList("coils"));
+        Config underhaulConfig = config.getConfig("underhaul");
+        Config underhaulSFRConfig = underhaulConfig.getConfig("fissionSFR");
+        Map<Integer, DictionaryEntry> underhaulSFRBlockMap = buildConfigDictionaryMap(underhaulSFRConfig.getConfigList("blocks"));
+        Map<Integer, DictionaryEntry> underhaulSFRFuelMap = buildConfigDictionaryMap(underhaulSFRConfig.getConfigList("fuels"));
 
-            boolean invalidVersion = false;
+        Config overhaulConfig = config.getConfig("overhaul");
+        Config overhaulSFRConfig = overhaulConfig.getConfig("fissionSFR");
+        Map<Integer, DictionaryEntry> overhaulSFRBlockMap = buildConfigDictionaryMap(overhaulSFRConfig.getConfigList("blocks"));
+        Map<Integer, DictionaryEntry> overhaulSFRFuelMap = buildConfigDictionaryMap(overhaulSFRConfig.getConfigList("fuels"));
+        Map<Integer, DictionaryEntry> overhaulSFRRecipeMap = buildConfigDictionaryMap(overhaulSFRConfig.getConfigList("irradiatorRecipes"));
 
-            for(int i = 0; i < count; i++){
-                Config data = Config.newConfig();
-                data.load(in);
+        Config overhaulMSRConfig = overhaulConfig.getConfig("fissionMSR");
+        Map<Integer, DictionaryEntry> overhaulMSRBlockMap = buildConfigDictionaryMap(overhaulMSRConfig.getConfigList("blocks"));
+        Map<Integer, DictionaryEntry> overhaulMSRFuelMap = buildConfigDictionaryMap(overhaulMSRConfig.getConfigList("fuels"));
+        Map<Integer, DictionaryEntry> overhaulMSRRecipeMap = buildConfigDictionaryMap(overhaulMSRConfig.getConfigList("irradiatorRecipes"));
 
-                int id = data.get("id");
-                switch(id){
-                    case 0:
-                        if(ReactorBuilder.isOverhaul()){
-                            invalidVersion = true;
-                            break;
-                        }
-                        ConfigNumberList size = data.get("size");
-                        DictionaryEntry fuel = underhaulSFRFuelMap.get((int)data.getByte("fuel", (byte)-1));
-                        UnderhaulSFRTemplate underhaulSFR = new UnderhaulSFRTemplate(file.getName(), (int)size.get(0),(int)size.get(1),(int)size.get(2),fuel);
+        Config overhaulTurbineConfig = overhaulConfig.getConfig("turbine");
+        Map<Integer, DictionaryEntry> overhaulTurbineBlockMap = buildConfigDictionaryMap(overhaulTurbineConfig.getConfigList("blocks"));
+        Map<Integer, DictionaryEntry> overhaulTurbineRecipeMap = buildConfigDictionaryMap(overhaulTurbineConfig.getConfigList("recipes"));
 
-                        readComponentsFromConfig(underhaulSFR, underhaulSFRBlockMap, data.get("blocks"), data.get("compact"));
+        boolean invalidVersion = false;
 
-                        template = underhaulSFR;
+        for(int i = 0; i < count; i++) {
+            Config data = Config.newConfig();
+            data.load(in);
+
+            int id = data.get("id");
+            switch(id) {
+                case 0:
+                    if(ReactorBuilder.isOverhaul()){
+                        invalidVersion = true;
                         break;
-                    case 1:
-                        if(!ReactorBuilder.isOverhaul()){
-                            invalidVersion = true;
-                            break;
-                        }
-                        size = data.get("size");
-                        OverhaulFissionTemplate overhaulSFRTemplate = new OverhaulFissionTemplate.SFR(file.getName(), (int)size.get(0),(int)size.get(1),(int)size.get(2));
+                    }
+                    ConfigNumberList size = data.get("dimensions");
+                    DictionaryEntry fuel = underhaulSFRFuelMap.get((int)data.getByte("fuel", (byte)-1));
+                    UnderhaulSFRTemplate underhaulSFR = new UnderhaulSFRTemplate(name, (int)size.get(0),(int)size.get(1),(int)size.get(2),fuel);
 
-                        readComponentsFromConfig(overhaulSFRTemplate, overhaulSFRBlockMap, data.get("blocks"), data.get("compact"));
-                        readRecipeMapFromConfig(overhaulSFRTemplate, overhaulSFRFuelMap, overhaulSFRRecipeMap, data.get("fuels"), data.get("irradiatorRecipes"));
+                    readComponentsFromConfig(underhaulSFR, underhaulSFRBlockMap, data.get("blocks"), data.get("compact"));
 
-                        template = overhaulSFRTemplate;
+                    template = underhaulSFR;
+                    break;
+                case 1:
+                    if(!ReactorBuilder.isOverhaul()){
+                        invalidVersion = true;
                         break;
-                    case 2:
-                        if(!ReactorBuilder.isOverhaul()){
-                            invalidVersion = true;
-                            break;
-                        }
-                        size = data.get("size");
-                        OverhaulFissionTemplate overhaulMSRTemplate = new OverhaulFissionTemplate.MSR(file.getName(), (int)size.get(0),(int)size.get(1),(int)size.get(2));
+                    }
+                    size = data.get("dimensions");
+                    OverhaulFissionTemplate overhaulSFRTemplate = new OverhaulFissionTemplate.SFR(name, (int)size.get(0),(int)size.get(1),(int)size.get(2));
 
-                        readComponentsFromConfig(overhaulMSRTemplate, overhaulMSRBlockMap, data.get("blocks"), data.get("compact"));
-                        readRecipeMapFromConfig(overhaulMSRTemplate, overhaulMSRFuelMap, overhaulMSRRecipeMap, data.get("fuels"), data.get("irradiatorRecipes"));
+                    readComponentsFromConfig(overhaulSFRTemplate, overhaulSFRBlockMap, data.get("blocks"), data.get("compact"));
+                    readRecipeMapFromConfig(overhaulSFRTemplate, overhaulSFRFuelMap, overhaulSFRRecipeMap, data.get("fuels"), data.get("irradiator"));
 
-                        template = overhaulMSRTemplate;
+                    template = overhaulSFRTemplate;
+                    break;
+                case 2:
+                    if(!ReactorBuilder.isOverhaul()){
+                        invalidVersion = true;
                         break;
-                    case 3:
-                        if(!ReactorBuilder.isOverhaul()){
-                            invalidVersion = true;
-                            break;
-                        }
-                        size = data.get("size");
-                        // ncpf.configuration.overhaul.turbine.allRecipes.get(data.get("recipe", (byte)-1))
-                        OverhaulTurbine overhaulTurbine = new OverhaulTurbine(file.getName(), (int)size.get(0), (int)size.get(1), (int)size.get(2));
+                    }
+                    size = data.get("dimensions");
+                    OverhaulFissionTemplate overhaulMSRTemplate = new OverhaulFissionTemplate.MSR(name, (int)size.get(0),(int)size.get(1),(int)size.get(2));
+
+                    readComponentsFromConfig(overhaulMSRTemplate, overhaulMSRBlockMap, data.get("blocks"), data.get("compact"));
+                    readRecipeMapFromConfig(overhaulMSRTemplate, overhaulMSRFuelMap, overhaulMSRRecipeMap, data.get("fuels"), data.get("irradiator"));
+
+                    template = overhaulMSRTemplate;
+                    break;
+                case 3:
+                    if(!ReactorBuilder.isOverhaul()){
+                        invalidVersion = true;
+                        break;
+                    }
+                    size = data.get("dimensions");
+                    // ncpf.configuration.overhaul.turbine.allRecipes.get(data.get("recipe", (byte)-1))
+                    OverhaulTurbine overhaulTurbine = new OverhaulTurbine(name, (int)size.get(0) + 2, (int)size.get(1) + 2, (int)size.get(2), 0);
                         /*
                         if(data.hasProperty("inputs")){
                             overhaulTurbinePostLoadInputsMap.put(overhaulTurbine, new ArrayList<>());
@@ -136,59 +151,170 @@ public class ThizNCPFReader extends AbstractFileReader {
                         }
 
                          */
-                        DictionaryEntry turbineShaft = GlobalDictionary.getComponentInfo("rotor_shaft");
-                        ConfigNumberList coils = data.get("coils");
-                        int index = 0;
-                        for(int z = 0; z < 2; z++){
-                            for(int x = 0; x<overhaulTurbine.xSize; x++){
-                                for(int y = 0; y<overhaulTurbine.ySize; y++){
+                    readComponentsFromConfig(overhaulTurbine, overhaulTurbineBlockMap, data.get("blocks"), true);
 
-                                    int bid = (int) coils.get(index);
-                                    if(bid > 0){
-                                        DictionaryEntry componentInfo = overhaulTurbineCoilsMap.get(bid-1);
-                                        overhaulTurbine.setCoilExact(componentInfo, x, y, z);
 
-                                        if(z == 0 && componentInfo.globalName.equals("rotor_bearing")){
-                                            for(int shaftPos = 1; shaftPos < overhaulTurbine.zSize-1; shaftPos++){
-                                                overhaulTurbine.setComponentInfo(turbineShaft, x, y, shaftPos);
-                                            }
+                    template = overhaulTurbine;
+                    break;
+                case 4:
+                    ///FUSION REACTOR
+                    error = "Fusion reactors haven't been added to NC yet";
+                    break;
+                default:
+                    error = "Unknown Multiblock ID: "+id;
+                    break;
+            }
+        }
+
+        return template;
+    }
+
+    private AbstractTemplate readNCPF9Template(String name, Config header, InputStream in) {
+        AbstractTemplate template = null;
+
+        int count = header.get("count");
+        if(count <= 0){
+            error = "NCPF doesn't contain any multiblocks";
+            return null;
+        }
+
+        Config config = Config.newConfig();
+        config.load(in);
+
+        Config underhaulConfig = config.getConfig("underhaul");
+        Config underhaulSFRConfig = underhaulConfig.getConfig("fissionSFR");
+        Map<Integer, DictionaryEntry> underhaulSFRBlockMap = buildConfigDictionaryMap(underhaulSFRConfig.getConfigList("blocks"));
+        Map<Integer, DictionaryEntry> underhaulSFRFuelMap = buildConfigDictionaryMap(underhaulSFRConfig.getConfigList("fuels"));
+
+        Config overhaulConfig = config.getConfig("overhaul");
+        Config overhaulSFRConfig = overhaulConfig.getConfig("fissionSFR");
+        Map<Integer, DictionaryEntry> overhaulSFRBlockMap = buildConfigDictionaryMap(overhaulSFRConfig.getConfigList("blocks"));
+        Map<Integer, DictionaryEntry> overhaulSFRFuelMap = buildConfigDictionaryMap(overhaulSFRConfig.getConfigList("fuels"));
+        Map<Integer, DictionaryEntry> overhaulSFRRecipeMap = buildConfigDictionaryMap(overhaulSFRConfig.getConfigList("irradiatorRecipes"));
+
+        Config overhaulMSRConfig = overhaulConfig.getConfig("fissionMSR");
+        Map<Integer, DictionaryEntry> overhaulMSRBlockMap = buildConfigDictionaryMap(overhaulMSRConfig.getConfigList("blocks"));
+        Map<Integer, DictionaryEntry> overhaulMSRFuelMap = buildConfigDictionaryMap(overhaulMSRConfig.getConfigList("fuels"));
+        Map<Integer, DictionaryEntry> overhaulMSRRecipeMap = buildConfigDictionaryMap(overhaulMSRConfig.getConfigList("irradiatorRecipes"));
+
+        Config overhaulTurbineConfig = overhaulConfig.getConfig("turbine");
+        Map<Integer, DictionaryEntry> overhaulTurbineBladesMap = buildConfigDictionaryMap(overhaulTurbineConfig.getConfigList("blades"));
+        Map<Integer, DictionaryEntry> overhaulTurbineCoilsMap = buildConfigDictionaryMap(overhaulTurbineConfig.getConfigList("coils"));
+
+        boolean invalidVersion = false;
+
+        for(int i = 0; i < count; i++){
+            Config data = Config.newConfig();
+            data.load(in);
+
+            int id = data.get("id");
+            switch(id){
+                case 0:
+                    if(ReactorBuilder.isOverhaul()){
+                        invalidVersion = true;
+                        break;
+                    }
+                    ConfigNumberList size = data.get("size");
+                    DictionaryEntry fuel = underhaulSFRFuelMap.get((int)data.getByte("fuel", (byte)-1));
+                    UnderhaulSFRTemplate underhaulSFR = new UnderhaulSFRTemplate(name, (int)size.get(0),(int)size.get(1),(int)size.get(2),fuel);
+
+                    readComponentsFromConfig(underhaulSFR, underhaulSFRBlockMap, data.get("blocks"), data.get("compact"));
+
+                    template = underhaulSFR;
+                    break;
+                case 1:
+                    if(!ReactorBuilder.isOverhaul()){
+                        invalidVersion = true;
+                        break;
+                    }
+                    size = data.get("size");
+                    OverhaulFissionTemplate overhaulSFRTemplate = new OverhaulFissionTemplate.SFR(name, (int)size.get(0),(int)size.get(1),(int)size.get(2));
+
+                    readComponentsFromConfig(overhaulSFRTemplate, overhaulSFRBlockMap, data.get("blocks"), data.get("compact"));
+                    readRecipeMapFromConfig(overhaulSFRTemplate, overhaulSFRFuelMap, overhaulSFRRecipeMap, data.get("fuels"), data.get("irradiatorRecipes"));
+
+                    template = overhaulSFRTemplate;
+                    break;
+                case 2:
+                    if(!ReactorBuilder.isOverhaul()){
+                        invalidVersion = true;
+                        break;
+                    }
+                    size = data.get("size");
+                    OverhaulFissionTemplate overhaulMSRTemplate = new OverhaulFissionTemplate.MSR(name, (int)size.get(0),(int)size.get(1),(int)size.get(2));
+
+                    readComponentsFromConfig(overhaulMSRTemplate, overhaulMSRBlockMap, data.get("blocks"), data.get("compact"));
+                    readRecipeMapFromConfig(overhaulMSRTemplate, overhaulMSRFuelMap, overhaulMSRRecipeMap, data.get("fuels"), data.get("irradiatorRecipes"));
+
+                    template = overhaulMSRTemplate;
+                    break;
+                case 3:
+                    if(!ReactorBuilder.isOverhaul()){
+                        invalidVersion = true;
+                        break;
+                    }
+                    size = data.get("size");
+                    // ncpf.configuration.overhaul.turbine.allRecipes.get(data.get("recipe", (byte)-1))
+                    OverhaulTurbine overhaulTurbine = new OverhaulTurbine(name, (int)size.get(0), (int)size.get(0), (int)size.get(1), (int)size.get(2));
+                        /*
+                        if(data.hasProperty("inputs")){
+                            overhaulTurbinePostLoadInputsMap.put(overhaulTurbine, new ArrayList<>());
+                            ConfigNumberList inputs = data.get("inputs");
+                            for(Number number : inputs.iterable()){
+                                overhaulTurbinePostLoadInputsMap.get(overhaulTurbine).add(number.intValue());
+                            }
+                        }
+
+                         */
+                    DictionaryEntry turbineShaft = GlobalDictionary.getComponentInfo("rotor_shaft");
+                    ConfigNumberList coils = data.get("coils");
+                    int index = 0;
+                    for(int z = 0; z < 2; z++){
+                        for(int x = 0; x<overhaulTurbine.xSize; x++){
+                            for(int y = 0; y<overhaulTurbine.ySize; y++){
+
+                                int bid = (int) coils.get(index);
+                                if(bid > 0){
+                                    DictionaryEntry componentInfo = overhaulTurbineCoilsMap.get(bid-1);
+                                    overhaulTurbine.setCoilExact(componentInfo, x, y, z);
+
+                                    if(z == 0 && componentInfo.globalName.equals("rotor_bearing")){
+                                        for(int shaftPos = 1; shaftPos < overhaulTurbine.zSize-1; shaftPos++){
+                                            overhaulTurbine.setComponentInfo(turbineShaft, x, y, shaftPos);
                                         }
                                     }
-
-                                    index++;
                                 }
+
+                                index++;
                             }
                         }
-                        ConfigNumberList blades = data.get("blades");
-                        index = 0;
-                        for(int z = 1; z<overhaulTurbine.zSize-1; z++){
-                            int bid = (int) blades.get(index);
-                            if(bid>0){
-                                DictionaryEntry componentInfo = overhaulTurbineBladesMap.get(bid-1);
-                                overhaulTurbine.setBladeExact(componentInfo, z);
-                            }
-                            index++;
+                    }
+                    ConfigNumberList blades = data.get("blades");
+                    index = 0;
+                    for(int z = 1; z<overhaulTurbine.zSize-1; z++){
+                        int bid = (int) blades.get(index);
+                        if(bid>0){
+                            DictionaryEntry componentInfo = overhaulTurbineBladesMap.get(bid-1);
+                            overhaulTurbine.setBladeExact(componentInfo, z);
                         }
+                        index++;
+                    }
 
-                        template = overhaulTurbine;
-                        break;
-                    case 4:
-                        ///FUSION REACTOR
-                        error = "Fusion reactors haven't been added to NC yet";
-                        break;
-                }
+                    template = overhaulTurbine;
+                    break;
+                case 4:
+                    ///FUSION REACTOR
+                    error = "Fusion reactors haven't been added to NC yet";
+                    break;
             }
-            if(template == null){
-                if(invalidVersion){
-                    error = "Template for : " + (ReactorBuilder.isOverhaul() ? "Underhaul" : "Overhaul");
-                    return null;
-                }
-            }
-
-
-        }catch (Exception e){
-            ReactorBuilder.logger.error("Error reading reactor file" + file.toPath(), e);
         }
+        if(template == null){
+            if(invalidVersion){
+                error = "Template for : " + (ReactorBuilder.isOverhaul() ? "Underhaul" : "Overhaul");
+                return null;
+            }
+        }
+
         return template;
     }
 
